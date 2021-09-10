@@ -1,68 +1,107 @@
+/**
+ * Задание:
+ * 1) Есть транспортные корабли, которые подплывают к туннели и далее плывут к причалам для
+ *    погрузки разного рода товара.
+ * 2) Они проходят через узкий туннель где одновременно могут находиться только 5 кораблей.
+ *    Под словом “подплывают к туннели” имеется ввиду то, что корабли должны откуда-то
+ *    появляться. Их может быть ограниченное количество, то есть 10 или 100, а может быть
+ *    бесконечное множество. Слово “Подплывают” назовем генератором кораблей.
+ * 3) Вид кораблей и их вместительность могут быть разными в зависимости от типа товаров,
+ *    которые нужно загрузить на корабль. То есть для ТЗ я придумал 2 типа вместительности.
+ * 4) Далее есть 2 вида причалов для погрузки кораблей. Каждый причал
+ *    берет или подзывает к себе необходимый ему по вместительности корабль и начинает его загружать.
+ *    За 2 секунды причал загружает на корабль 1 ед. товара. То есть если у корабля вместительность 5 шт.,
+ *    то причал загрузит его за 5 секунд своей работы.
+ */
+
 import java.util.ArrayList;
 import java.util.Random;
 
+// This class simulates the tunnel
 class Tunnel extends Thread{
-    ArrayList<Integer> arr = new ArrayList<>();
-    Port port1;
-    Port port2;
+    private Port port1;
+    private Port port2;
+    private Thread tPort1;
+    private Thread tPort2;
     boolean isFinish = false;
+    private static final int MAX_SHIPS = 5;  // Max quantity of ships in tunnel
+    // These variables contain the capacity of ships that sail to the corresponding port
+    private static final int capacityOfPort1 = 1;
+    private static final int capacityOfPort2 = 2;
+    private ArrayList<Integer> arrTunnel = new ArrayList<>();  // Will contain ships
 
-    public Tunnel(Port p1, Port p2){
-        port1 = p1;
-        port2 = p2;
+    public Tunnel(){
+        port1 = new Port(1);
+        port2 = new Port(2);
+        port1.setTunnel(this);
+        port2.setTunnel(this);
     }
 
-    public synchronized void shipEnter(int number){
-        if(number == 1) {
-            arr.add(1);
+    public static int getCapacityOfPort1() {
+        return capacityOfPort1;
+    }
+
+    public static int getCapacityOfPort2() {
+        return capacityOfPort2;
+    }
+
+    // New ship enter to the tunnel
+    public synchronized void shipEnter(int capacity){
+        System.out.println("--Tunnel: new ship entered to tunnel--");
+        if(capacity == capacityOfPort1) {
+            arrTunnel.add(capacityOfPort1);
         } else {
-            arr.add(2);
+            arrTunnel.add(capacityOfPort2);
         }
 
-        if(arr.size() == 5){
+        // If tunnel is full we do "wait"
+        if(arrTunnel.size() == MAX_SHIPS){
             try {
                 wait();
             } catch (InterruptedException e) {
                 e.printStackTrace();
             }
         }
-        System.out.println("Got ship!");
     }
 
+    // Port #1 prompts the ship
     public synchronized void getShip1(){
-        for (int i = 0; i < arr.size(); i++) {
-            if(arr.get(i) == 1){
+        for (int i = 0; i < arrTunnel.size(); i++) {
+            if(arrTunnel.get(i) == capacityOfPort1){
                 port1.shipEnter();
-                arr.remove(i);
+                arrTunnel.remove(i);
                 notify();
                 break;
             }
         }
     }
 
+    // Port #2 prompts the ship
     public synchronized void getShip2(){
-        for (int i = 0; i < arr.size(); i++) {
-            if(arr.get(i) == 2){
+        for (int i = 0; i < arrTunnel.size(); i++) {
+            if(arrTunnel.get(i) == capacityOfPort2){
                 port2.shipEnter();
-                arr.remove(i);
+                arrTunnel.remove(i);
                 notify();
                 break;
             }
         }
     }
 
+    // The ships won't sail anymore. Therefore it's time to finish working
     private void finish(){
         port1.isFinish = true;
         port2.isFinish = true;
 
+        // Wait finishing the work of ports
         try {
-            port1.join();
+            tPort1.join();
         } catch (InterruptedException e) {
             e.printStackTrace();
         }
 
         try {
-            port2.join();
+            tPort2.join();
         } catch (InterruptedException e) {
             e.printStackTrace();
         }
@@ -72,54 +111,65 @@ class Tunnel extends Thread{
 
     @Override
     public void run() {
+        tPort1 = new Thread(port1);
+        tPort2 = new Thread(port2);
+        tPort1.start();
+        tPort2.start();
+
         while(!isInterrupted()) {
-            if(isFinish && arr.size()==0){
+            if(isFinish && arrTunnel.size()==0){
                 finish();
             }
         }
     }
 }
 
+// This class describes ports
 class Port extends Thread{
-    int scope;
-    boolean isShip = false;
+    private Tunnel tunnel;
+    private int capacity;
+    private boolean isShip = false;
     boolean isFinish = false;
-    Tunnel tunnel;
 
-    public Port(int s){
-        scope = s;
+    public Port(int c){
+        capacity = c;
     }
 
+    // Gets an object of tunnel
     public void setTunnel(Tunnel tunnel) {
         this.tunnel = tunnel;
     }
 
+    // The ship enters to this port
     public synchronized void shipEnter(){
         isShip = true;
     }
 
+    // Loading the goods to the ship
     private synchronized void loading(){
+        // If it's time to finish
         out:
         while(true) {
             while (!isShip) {
                 if (isFinish) {
                     break out;
-                } else if (scope == 1) {
+                }
+                // Port prompt the ship if it's empty
+                else if (capacity == 1) {
                     tunnel.getShip1();
                 } else {
                     tunnel.getShip2();
                 }
             }
 
+            // Loading the goods
+            System.out.println("Port " + capacity + " is starting loading");
             try {
-                sleep(50 * scope);
+                sleep(2000 * capacity);
             } catch (InterruptedException e) {
                 e.printStackTrace();
             }
 
-            System.out.println("---------------" + scope);
-
-            notify();
             isShip = false;
         }
     }
@@ -131,36 +181,21 @@ class Port extends Thread{
 }
 
 public class Task{
-    static Port port1;
-    static Port port2;
-    static Tunnel tunnel;
-
     public static void main(String[] args) {
-        port1 = new Port(1);
-        port2 = new Port(2);
-        tunnel = new Tunnel(port1, port2);
-        port1.setTunnel(tunnel);
-        port2.setTunnel(tunnel);
-
+        Tunnel tunnel = new Tunnel();
         Thread t1 = new Thread(tunnel);
-        Thread t2 = new Thread(port1);
-        Thread t3 = new Thread(port2);
-
         t1.start();
-        t2.start();
-        t3.start();
 
-        int r;
+        int capacity;
         System.out.println("Start!");
         Random random = new Random();
         for (int i = 0; i < 10; i++) {
-            System.out.println("Made 1 ship");
-
-            r = random.nextInt(2) + 1;
-            tunnel.shipEnter(r);
+            capacity = random.nextInt(2) + 1;
+            System.out.println("SEA: a new ship appeared on the horizon");
+            tunnel.shipEnter(capacity);
 
             try {
-                Thread.sleep(10);
+                Thread.sleep(500);
             } catch (InterruptedException e) {
                 e.printStackTrace();
             }
@@ -170,7 +205,6 @@ public class Task{
             t1.join();
         } catch (InterruptedException e) {
             e.printStackTrace();
-            System.out.println("haha");
         }
         System.out.println("Finish!");
     }
