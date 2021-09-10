@@ -37,15 +37,6 @@ class Tunnel extends Thread{
         port2.setTunnel(this);
     }
 
-    public static int getCapacityOfPort1() {
-        return capacityOfPort1;
-    }
-
-    public static int getCapacityOfPort2() {
-        return capacityOfPort2;
-    }
-
-    // New ship enter to the tunnel
     public synchronized void shipEnter(int capacity){
         System.out.println("--Tunnel: new ship entered to tunnel--");
         if(capacity == capacityOfPort1) {
@@ -64,26 +55,23 @@ class Tunnel extends Thread{
         }
     }
 
-    // Port #1 prompts the ship
-    public synchronized void getShip1(){
+    // Port prompts the ship
+    public synchronized void getShip(int capacity){
         for (int i = 0; i < arrTunnel.size(); i++) {
-            if(arrTunnel.get(i) == capacityOfPort1){
-                port1.shipEnter();
-                arrTunnel.remove(i);
-                notify();
-                break;
-            }
-        }
-    }
-
-    // Port #2 prompts the ship
-    public synchronized void getShip2(){
-        for (int i = 0; i < arrTunnel.size(); i++) {
-            if(arrTunnel.get(i) == capacityOfPort2){
-                port2.shipEnter();
-                arrTunnel.remove(i);
-                notify();
-                break;
+            if(capacity == capacityOfPort1) {
+                if (arrTunnel.get(i) == capacityOfPort1) {
+                    port1.shipEnter();
+                    arrTunnel.remove(i);
+                    notify();
+                    break;
+                }
+            } else {
+                if(arrTunnel.get(i) == capacityOfPort2){
+                    port2.shipEnter();
+                    arrTunnel.remove(i);
+                    notify();
+                    break;
+                }
             }
         }
     }
@@ -155,11 +143,7 @@ class Port extends Thread{
                     break out;
                 }
                 // Port prompt the ship if it's empty
-                else if (capacity == 1) {
-                    tunnel.getShip1();
-                } else {
-                    tunnel.getShip2();
-                }
+                tunnel.getShip(capacity);
             }
 
             // Loading the goods
